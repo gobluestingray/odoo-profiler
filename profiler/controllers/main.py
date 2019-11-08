@@ -21,7 +21,8 @@ from openerp.service.db import dump_db_manifest
 
 
 _logger = logging.getLogger(__name__)
-DFTL_LOG_PATH = "/var/lib/postgresql/%s/main/pg_log/postgresql.log"
+# TODO: Pull the log path from a System Parameter
+DFTL_LOG_PATH = "/var/lib/postgresql/data/pgdata/pg_log/postgresql.log"
 
 PGOPTIONS = (
     "-c client_min_messages=notice -c log_min_messages=warning "
@@ -136,7 +137,7 @@ class ProfilerController(http.Controller):
             return
         filename = os.path.join(dir_dump, output)
         pg_version = dump_db_manifest(cursor)["pg_version"]
-        log_path = os.environ.get("PG_LOG_PATH", DFTL_LOG_PATH % pg_version)
+        log_path = os.environ.get("PG_LOG_PATH", DFTL_LOG_PATH)
         if not os.path.exists(os.path.dirname(filename)):
             try:
                 os.makedirs(os.path.dirname(filename))
