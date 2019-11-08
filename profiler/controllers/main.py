@@ -68,7 +68,6 @@ class ProfilerController(http.Controller):
         ProfilerController.begin_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_enabled"
 
-        # BEGIN CUSTOM CODE
         profiler_obj = request.env["profiler.profiler"]
         user = request.env.user
 
@@ -79,7 +78,6 @@ class ProfilerController(http.Controller):
         # Create new profiler record for the current user
         profiler_id = profiler_obj.create({"user_id": user.id, "datetime_begin": ProfilerController.begin_date})
         request.env.cr.commit()
-        # END CUSTOM CODE
 
         os.environ["PGOPTIONS"] = PGOPTIONS
         self.empty_cursor_pool()
@@ -91,7 +89,6 @@ class ProfilerController(http.Controller):
         ProfilerController.end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_disabled"
 
-        # BEGIN CUSTOM CODE
         profiler_obj = request.env["profiler.profiler"]
         user = request.env.user
 
@@ -102,7 +99,6 @@ class ProfilerController(http.Controller):
 
         profiler_id.datetime_end = ProfilerController.end_date
         request.env.cr.commit()
-        # END CUSTOM CODE
 
         os.environ.pop("PGOPTIONS", None)
         self.empty_cursor_pool()
@@ -179,7 +175,6 @@ class ProfilerController(http.Controller):
         exclude_query = self.get_exclude_query()
         dbname = cursor.dbname
 
-        # BEGIN CUSTOM CODE
         profiler_obj = request.env["profiler.profiler"]
         user = request.env.user
 
@@ -190,10 +185,9 @@ class ProfilerController(http.Controller):
             raise ValidationError(
                 _("Must have a Start Date ({}) and End Date ({}) to run pgbadger!".format(begin_date, end_date))
             )
-        # END CUSTOM CODE
 
         command = [
-            "sudo",  # CUSTOM CODE
+            "sudo",
             pgbadger,
             "-f",
             "stderr",
@@ -204,9 +198,9 @@ class ProfilerController(http.Controller):
             "-d",
             dbname,
             "-b",
-            begin_date,  # CUSTOM CODE
+            begin_date,
             "-e",
-            end_date,  # CUSTOM CODE
+            end_date,
             "--sample",
             "2",
             "--disable-type",
