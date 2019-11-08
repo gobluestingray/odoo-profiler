@@ -10,6 +10,7 @@ import openerp
 
 from openerp.http import WebRequest
 from openerp.service.server import ThreadedServer
+
 _logger = logging.getLogger(__name__)
 
 
@@ -41,25 +42,25 @@ def patch_odoo():
 
     For instance, Odoo spawns a new thread for each request.
     """
-    _logger.info('Patching openerp.http.WebRequest._call_function')
+    _logger.info("Patching openerp.http.WebRequest._call_function")
     webreq_f_origin = WebRequest._call_function
 
     def webreq_f(*args, **kwargs):
         with profiling():
             return webreq_f_origin(*args, **kwargs)
+
     WebRequest._call_function = webreq_f
 
 
 def dump_stats():
     """Dump stats to standard file"""
-    _logger.info('Dump stats')
-    CoreProfile.profile.dump_stats(
-        os.path.expanduser('~/.openerp_server.stats'))
+    _logger.info("Dump stats")
+    CoreProfile.profile.dump_stats(os.path.expanduser("~/.openerp_server.stats"))
 
 
 def create_profile():
     """Create the global, shared profile object."""
-    _logger.info('Create profile')
+    _logger.info("Create profile")
     CoreProfile.profile = Profile()
 
 
@@ -67,21 +68,22 @@ def patch_stop():
     """When the server is stopped then save the result of cProfile stats"""
     origin_stop = ThreadedServer.stop
 
-    _logger.info('Patching openerp.service.server.ThreadedServer.stop')
+    _logger.info("Patching openerp.service.server.ThreadedServer.stop")
 
     def stop(*args, **kwargs):
-        if openerp.tools.config['test_enable']:
+        if openerp.tools.config["test_enable"]:
             dump_stats()
         return origin_stop(*args, **kwargs)
+
     ThreadedServer.stop = stop
 
 
 def post_load():
-    _logger.info('Post load')
+    _logger.info("Post load")
     create_profile()
     patch_odoo()
-    if openerp.tools.config['test_enable']:
+    if openerp.tools.config["test_enable"]:
         # Enable profile in test mode for orm methods.
-        _logger.info('Enabling profiler and apply patch')
+        _logger.info("Enabling profiler and apply patch")
         CoreProfile.enabled = True
         patch_stop()

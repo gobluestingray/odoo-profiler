@@ -14,4 +14,5 @@ class TestUi(openerp.tests.HttpCase):
             "/",
             "odoo.__DEBUG__.services['web.Tour'].run('profile')",
             "odoo.__DEBUG__.services['web.Tour'].tours.profile",
-            login="admin")
+            login="admin",
+        )
