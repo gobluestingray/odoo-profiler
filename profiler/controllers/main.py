@@ -13,7 +13,8 @@ from cStringIO import StringIO
 from pstats_print2list import get_pstats_print2list, print_pstats_list
 
 from openerp.tools.misc import find_in_path
-from openerp import http, tools, sql_db
+from openerp import http, tools, sql_db, _
+from openerp.exceptions import ValidationError
 from openerp.http import request
 
 from openerp.addons.profiler.hooks import CoreProfile as core
@@ -66,6 +67,20 @@ class ProfilerController(http.Controller):
         core.enabled = True
         ProfilerController.begin_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_enabled"
+
+        # BEGIN CUSTOM CODE
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        # Delete user's existing profiler record
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        profiler_id.unlink()
+
+        # Create new profiler record for the current user
+        profiler_id = profiler_obj.create({"user_id": user.id, "datetime_begin": ProfilerController.begin_date})
+        request.env.cr.commit()
+        # END CUSTOM CODE
+
         os.environ["PGOPTIONS"] = PGOPTIONS
         self.empty_cursor_pool()
 
@@ -75,6 +90,20 @@ class ProfilerController(http.Controller):
         core.enabled = False
         ProfilerController.end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_disabled"
+
+        # BEGIN CUSTOM CODE
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        # Find the profiler record for the current user
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        if not profiler_id:
+            raise ValidationError(_("Can't find the started profiler for this user. You'll need to start over."))
+
+        profiler_id.datetime_end = ProfilerController.end_date
+        request.env.cr.commit()
+        # END CUSTOM CODE
+
         os.environ.pop("PGOPTIONS", None)
         self.empty_cursor_pool()
 
@@ -149,6 +178,20 @@ class ProfilerController(http.Controller):
         _logger.info("Generating PG Badger report.")
         exclude_query = self.get_exclude_query()
         dbname = cursor.dbname
+
+        # BEGIN CUSTOM CODE
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        begin_date = profiler_id.datetime_begin
+        end_date = profiler_id.datetime_end
+        if not (begin_date and end_date):
+            raise ValidationError(
+                _("Must have a Start Date ({}) and End Date ({}) to run pgbadger!".format(begin_date, end_date))
+            )
+        # END CUSTOM CODE
+
         command = [
             pgbadger,
             "-f",
@@ -160,9 +203,9 @@ class ProfilerController(http.Controller):
             "-d",
             dbname,
             "-b",
-            ProfilerController.begin_date,
+            begin_date,  # CUSTOM CODE
             "-e",
-            ProfilerController.end_date,
+            end_date,  # CUSTOM CODE
             "--sample",
             "2",
             "--disable-type",
