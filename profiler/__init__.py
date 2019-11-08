@@ -3,4 +3,5 @@
 # Copyright 2014 Anybox <http://anybox.fr>
 # Copyright 2016 Vauxoo (https://www.vauxoo.com) <info@vauxoo.com>
 from . import controllers
+from . import models
 from .hooks import post_load
