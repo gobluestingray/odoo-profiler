@@ -193,6 +193,7 @@ class ProfilerController(http.Controller):
         # END CUSTOM CODE
 
         command = [
+            "sudo",  # CUSTOM CODE
             pgbadger,
             "-f",
             "stderr",
