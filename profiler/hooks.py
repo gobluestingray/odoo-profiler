@@ -71,8 +71,9 @@ def patch_stop():
     _logger.info("Patching openerp.service.server.ThreadedServer.stop")
 
     def stop(*args, **kwargs):
-        if openerp.tools.config["test_enable"]:
-            dump_stats()
+        # FIXME: Should this be allowed to apply always?
+        # if openerp.tools.config["test_enable"]:
+        dump_stats()
         return origin_stop(*args, **kwargs)
 
     ThreadedServer.stop = stop
@@ -82,8 +83,9 @@ def post_load():
     _logger.info("Post load")
     create_profile()
     patch_odoo()
-    if openerp.tools.config["test_enable"]:
-        # Enable profile in test mode for orm methods.
-        _logger.info("Enabling profiler and apply patch")
-        CoreProfile.enabled = True
-        patch_stop()
+    # FIXME: Should this be allowed to apply always?
+    # if openerp.tools.config['test_enable']:
+    # Enable profile in test mode for orm methods.
+    _logger.info("Enabling profiler and apply patch")
+    CoreProfile.enabled = True
+    patch_stop()
