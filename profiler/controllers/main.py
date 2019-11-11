@@ -13,7 +13,8 @@ from cStringIO import StringIO
 from pstats_print2list import get_pstats_print2list, print_pstats_list
 
 from openerp.tools.misc import find_in_path
-from openerp import http, tools, sql_db
+from openerp import http, tools, sql_db, _
+from openerp.exceptions import ValidationError
 from openerp.http import request
 
 from openerp.addons.profiler.hooks import CoreProfile as core
@@ -21,7 +22,8 @@ from openerp.service.db import dump_db_manifest
 
 
 _logger = logging.getLogger(__name__)
-DFTL_LOG_PATH = "/var/lib/postgresql/%s/main/pg_log/postgresql.log"
+# TODO: Pull the log path from a System Parameter
+DFTL_LOG_PATH = "/var/lib/postgresql/data/pgdata/pg_log/postgresql.log"
 
 PGOPTIONS = (
     "-c client_min_messages=notice -c log_min_messages=warning "
@@ -65,6 +67,18 @@ class ProfilerController(http.Controller):
         core.enabled = True
         ProfilerController.begin_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_enabled"
+
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        # Delete user's existing profiler record
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        profiler_id.unlink()
+
+        # Create new profiler record for the current user
+        profiler_id = profiler_obj.create({"user_id": user.id, "datetime_begin": ProfilerController.begin_date})
+        request.env.cr.commit()
+
         os.environ["PGOPTIONS"] = PGOPTIONS
         self.empty_cursor_pool()
 
@@ -74,6 +88,18 @@ class ProfilerController(http.Controller):
         core.enabled = False
         ProfilerController.end_date = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         ProfilerController.player_state = "profiler_player_disabled"
+
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        # Find the profiler record for the current user
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        if not profiler_id:
+            raise ValidationError(_("Can't find the started profiler for this user. You'll need to start over."))
+
+        profiler_id.datetime_end = ProfilerController.end_date
+        request.env.cr.commit()
+
         os.environ.pop("PGOPTIONS", None)
         self.empty_cursor_pool()
 
@@ -136,7 +162,7 @@ class ProfilerController(http.Controller):
             return
         filename = os.path.join(dir_dump, output)
         pg_version = dump_db_manifest(cursor)["pg_version"]
-        log_path = os.environ.get("PG_LOG_PATH", DFTL_LOG_PATH % pg_version)
+        log_path = os.environ.get("PG_LOG_PATH", DFTL_LOG_PATH)
         if not os.path.exists(os.path.dirname(filename)):
             try:
                 os.makedirs(os.path.dirname(filename))
@@ -148,7 +174,20 @@ class ProfilerController(http.Controller):
         _logger.info("Generating PG Badger report.")
         exclude_query = self.get_exclude_query()
         dbname = cursor.dbname
+
+        profiler_obj = request.env["profiler.profiler"]
+        user = request.env.user
+
+        profiler_id = profiler_obj.search([("user_id", "=", user.id)])
+        begin_date = profiler_id.datetime_begin
+        end_date = profiler_id.datetime_end
+        if not (begin_date and end_date):
+            raise ValidationError(
+                _("Must have a Start Date ({}) and End Date ({}) to run pgbadger!".format(begin_date, end_date))
+            )
+
         command = [
+            "sudo",
             pgbadger,
             "-f",
             "stderr",
@@ -159,9 +198,9 @@ class ProfilerController(http.Controller):
             "-d",
             dbname,
             "-b",
-            ProfilerController.begin_date,
+            begin_date,
             "-e",
-            ProfilerController.end_date,
+            end_date,
             "--sample",
             "2",
             "--disable-type",
